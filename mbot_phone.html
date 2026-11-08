@@ -1,0 +1,663 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0f1115">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="mBot RC">
+<title>mBot RC</title>
+<style>
+  :root {
+    --bg: #0f1115; --card: #181b22; --tile: #1f232c; --line: #2a2f3a;
+    --fg: #eef0f4; --muted: #7d8595; --dim: #4a5060;
+    --accent: #3d9bff; --cyan: #33c8e0; --good: #3ddc97; --warn: #ffb547; --bad: #ff6363;
+    --track: #272b35; --robot: #3d9bff;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg);
+    font: 14px/1.3 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-variant-numeric: tabular-nums; -webkit-user-select: none; user-select: none;
+    touch-action: manipulation; overscroll-behavior: none; }
+  body { padding: env(safe-area-inset-top) 12px env(safe-area-inset-bottom); display: flex;
+    flex-direction: column; min-height: 100%; }
+  .strip { height: 3px; margin: 0 -12px; background: linear-gradient(90deg, var(--accent), var(--cyan)); }
+
+  header { display: flex; align-items: center; gap: 8px; padding: 10px 2px; }
+  header h1 { font-size: 16px; margin: 0; font-weight: 650; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--warn); flex: none; }
+  .who { display: inline-flex; align-items: center; gap: 6px; min-width: 0; flex: 1; color: var(--muted); font-size: 12px; }
+  .who span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .swatch { width: 12px; height: 12px; border-radius: 4px; flex: none; background: var(--robot);
+    box-shadow: 0 0 8px var(--robot); }
+  .swatch[hidden] { display: none; }
+  .links { flex: none; display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+  .bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; }
+  .bars i { width: 3px; background: var(--track); border-radius: 1px; }
+  .bars i:nth-child(1) { height: 4px } .bars i:nth-child(2) { height: 6px }
+  .bars i:nth-child(3) { height: 9px } .bars i:nth-child(4) { height: 12px }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; flex: 1; }
+  .layout > section { min-width: 0; }
+  @media (orientation: landscape) and (min-width: 600px) {
+    .layout { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+  }
+  .card { background: var(--card); border-radius: 14px; padding: 12px; }
+  .caps { font-size: 10px; font-weight: 650; letter-spacing: .06em; color: var(--dim); text-transform: uppercase; }
+
+  /* Dashboard: wheel meters either side of the robot's senses */
+  .dash { display: grid; grid-template-columns: 22px minmax(0, 1fr) 22px; gap: 12px; align-items: stretch; }
+  .meter { display: flex; flex-direction: column; align-items: center; gap: 4px; justify-content: end; }
+  .meter .bar { position: relative; width: 12px; height: min(120px, 15vh); background: var(--tile); border-radius: 6px; overflow: hidden; }
+  .meter .bar::after { content: ""; position: absolute; left: -2px; right: -2px; top: 50%; height: 1px; background: var(--muted); }
+  .meter .fill { position: absolute; left: 0; right: 0; background: var(--good); transition: all .12s ease-out; }
+  .meter span { font-size: 10px; color: var(--muted); }
+  .meter em { font-style: normal; font-size: 11px; }
+  .senses { display: grid; gap: 10px; align-content: center; min-width: 0; }
+  .dist { display: flex; align-items: baseline; gap: 6px; }
+  .dist b { font-size: 40px; font-weight: 700; line-height: 1; }
+  .dist small { color: var(--muted); font-size: 12px; }
+  .guard { margin-left: auto; font-size: 11px; font-weight: 800; letter-spacing: .05em; color: var(--bg);
+    background: var(--bad); padding: 4px 8px; border-radius: 6px; }
+  .guard[hidden] { display: none; }
+  /* closeness: fills from the right as something gets nearer (0-100 cm) */
+  .near { position: relative; height: 10px; border-radius: 5px; background: var(--tile); overflow: hidden; }
+  .near i { position: absolute; top: 0; bottom: 0; right: 0; width: 0; border-radius: 5px; transition: width .15s ease-out, background .15s; }
+  .near .mark { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--bad); opacity: .8; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .row2 > div { display: grid; gap: 5px; min-width: 0; }
+  .eyes { display: flex; gap: 6px; }
+  .eye { flex: 1; height: 22px; border-radius: 6px; border: 1px solid var(--line); background: var(--tile);
+    display: grid; place-items: center; font-size: 10px; font-weight: 700; color: var(--muted); }
+  .eye.black { background: #000; color: #8a8f99; border-color: #3a3f4a; }
+  .eye.white { background: #f2f2ee; color: #444; border-color: #f2f2ee; }
+  .light { display: flex; align-items: center; gap: 8px; }
+  .light .near { flex: 1; }
+  .light .near i { left: 0; right: auto; background: var(--warn); }
+  .light b { font-size: 13px; width: 34px; text-align: right; }
+
+  button { font: inherit; color: var(--fg); background: var(--tile); border: 0; border-radius: 10px; }
+  .small { padding: 7px 12px; font-size: 12px; }
+
+  .pad { width: 100%; max-width: 460px; margin: 0 auto; touch-action: none; }
+  .pad.locked .stick { opacity: .35; }
+  .lock { display: none; align-items: center; gap: 10px; margin-bottom: 10px; padding: 10px 12px; border-radius: 10px;
+    background: #ffb54722; color: var(--warn); font-size: 13px; }
+  .lock.show { display: flex; }
+  .lock span { flex: 1; }
+  .lock button { padding: 7px 10px; font-size: 12px; font-weight: 700; flex: none; }
+  /* Two sticks, like a game controller: left = forward/back, right = left/right. Each knob slides
+     along its own axis, up to STICK_TRAVEL of the base's width from the centre. */
+  .sticks { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .stickbox { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
+  .stick { position: relative; width: min(100%, 34vh); aspect-ratio: 1; border-radius: 50%; touch-action: none;
+    background: radial-gradient(circle closest-side, var(--tile) 0 66%, var(--card) 67% 100%);
+    border: 1px solid var(--line); transition: border-color .1s; --gear: var(--accent); }
+  .stick.on { border-color: var(--gear); }
+  .stick svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .stick .guide { stroke: var(--line); stroke-width: .6; fill: none; }
+  .stick .ring { stroke: var(--line); stroke-width: .6; stroke-dasharray: 2 2; fill: none; }
+  .stick .arrow { fill: var(--dim); transition: fill .1s; }
+  .stick.on .arrow { fill: var(--muted); }
+  .knob { position: absolute; left: 50%; top: 50%; width: 34%; aspect-ratio: 1; border-radius: 50%;
+    transform: translate(-50%, -50%); background: var(--track); border: 1px solid var(--line);
+    box-shadow: 0 4px 14px #0008; transition: transform .14s ease-out, background .1s; pointer-events: none; }
+  .knob::after { content: ""; position: absolute; inset: 30%; border-radius: 50%; border: 1px solid var(--dim); }
+  .stick.on .knob { transition: background .1s; background: var(--gear); border-color: var(--gear); }
+  .stick.on .knob::after { border-color: #0f111580; }
+  .padrow { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-top: 12px; }
+  .stop { padding: 13px 0; border-radius: 12px; background: var(--bad); color: var(--bg); font-weight: 900;
+    letter-spacing: .06em; box-shadow: 0 0 0 4px #ff636333; touch-action: none; }
+  .stop:active { transform: scale(.97); }
+  .horn { padding: 13px 0; border-radius: 12px; background: var(--track); color: var(--warn); font-size: 12px;
+    font-weight: 700; letter-spacing: .06em; border: 1px solid var(--line); touch-action: none; }
+  .horn:active { background: var(--warn); color: var(--bg); transform: scale(.97); }
+
+  .gears { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+  .gear { padding: 10px 4px; border: 1px solid transparent; text-align: center; }
+  .gear b { display: block; font-size: 18px; color: var(--muted); }
+  .gear span { display: block; font-size: 12px; font-weight: 650; }
+  .gear small { display: block; font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+  .warn { color: var(--warn); font-size: 12px; margin-top: 8px; }
+  footer { color: var(--dim); font-size: 11px; text-align: center; padding: 10px 0 12px; }
+  .btnrow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .setupbtn { width: 100%; margin-top: 10px; padding: 10px; font-size: 13px; font-weight: 650; }
+
+  /* Sheets: Robots and Setup */
+  .sheet { position: fixed; inset: 0; z-index: 5; background: var(--bg); overflow-y: auto; display: none;
+    padding: env(safe-area-inset-top) 12px calc(env(safe-area-inset-bottom) + 16px); }
+  .sheet.show { display: block; }
+  .sheet.robots { z-index: 20; }   /* above the "Waiting for the robot" overlay */
+  .sheet-head { display: flex; align-items: center; gap: 10px; padding: 12px 2px 8px; }
+  .sheet-head h2 { flex: 1; margin: 0; font-size: 16px; }
+  .sheet .card { margin-bottom: 10px; }
+  .hint { color: var(--muted); font-size: 12px; margin: 4px 0 8px; }
+  .srow { display: flex; align-items: center; gap: 8px; margin-top: 8px; min-width: 0; flex-wrap: wrap; }
+  .srow input[type=range] { flex: 1; min-width: 0; accent-color: var(--accent); }
+  .srow .val { width: 110px; text-align: right; font-size: 12px; flex: none; }
+  .chip { padding: 8px 10px; border-radius: 8px; font-size: 12px; font-weight: 600; }
+  .chip.on { background: var(--accent); color: var(--bg); }
+  .colours { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+  .colours button { padding: 9px 4px; font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .colours button i { width: 10px; height: 10px; border-radius: 3px; }
+  .colours button.on { box-shadow: inset 0 0 0 1px var(--fg); }
+  .status { font-size: 13px; margin: 0 0 10px; color: var(--muted); }
+  .status.ok { color: var(--good); } .status.bad { color: var(--bad); }
+  .list { display: grid; gap: 6px; margin-top: 10px; }
+  .list button { padding: 12px 10px; text-align: left; font-size: 14px; display: flex; gap: 10px; align-items: center; }
+  .list button b { flex: 1; min-width: 0; font-weight: 650; }
+  .list button small { color: var(--muted); font-size: 11px; text-align: right; line-height: 1.35; }
+  .list button.yours { box-shadow: inset 0 0 0 1px var(--good); }
+  .list .tag { color: var(--good); font-size: 11px; font-weight: 700; }
+  .list .swatch { box-shadow: none; }
+  .list .swatch.none { background: var(--track); }
+  .signal { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; }
+  .signal i { width: 3px; background: var(--track); border-radius: 1px; }
+  .signal i:nth-child(1) { height: 4px } .signal i:nth-child(2) { height: 7px } .signal i:nth-child(3) { height: 10px }
+  .signal i.lit { background: var(--accent); }
+
+  .overlay { position: fixed; inset: 0; background: #0f1115e6; display: none; place-items: center;
+    text-align: center; padding: 24px; z-index: 10; }
+  .overlay.show { display: grid; }
+  .overlay h2 { margin: 0 0 6px; font-size: 18px; }
+  .overlay p { margin: 0; color: var(--muted); }
+  .overlay button { margin-top: 16px; padding: 10px 16px; font-weight: 650; }
+  .overlay button[hidden] { display: none; }
+
+  /* Handheld: a phone held sideways is a controller. Left thumb stick | senses, gears, STOP / HORN |
+     right thumb stick. display: contents lets the sticks and the centre widgets share one grid. */
+  @media (orientation: landscape) and (max-height: 560px) {
+    body { padding-left: max(12px, env(safe-area-inset-left)); padding-right: max(12px, env(safe-area-inset-right));
+      padding-bottom: max(6px, env(safe-area-inset-bottom)); }
+    header { padding: 4px 2px; }
+    footer { display: none; }
+    .layout { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: repeat(5, auto);
+      align-content: center; column-gap: 14px; row-gap: 6px; }
+    .layout > section, .pad, .sticks { display: contents; }
+    .stickbox { --s: min(32vw, 66vh); }
+    .stickbox .stick { width: var(--s); }
+    .stickbox .caps { display: none; }
+    .stickbox:first-child { grid-column: 1; grid-row: 1 / -1; align-self: end; }
+    .stickbox:last-child { grid-column: 3; grid-row: 1 / -1; align-self: end; }
+    .dash { grid-column: 2; grid-row: 1; padding: 8px 10px; }
+    .meter .bar { height: min(84px, 24vh); }
+    .dist b { font-size: 30px; }
+    .gears { grid-column: 2; grid-row: 2; margin-top: 0; gap: 6px; }
+    .gear { padding: 6px 2px; }
+    .gear b { font-size: 15px; }
+    .gear small { display: none; }
+    .padrow { grid-column: 2; grid-row: 3; margin-top: 0; }
+    .stop, .horn { padding: 10px 0; }
+    .btnrow { grid-column: 2; grid-row: 4; }
+    .btnrow .setupbtn { margin-top: 0; padding: 7px; font-size: 12px; }
+    .warn { grid-column: 2; grid-row: 5; margin-top: 0; }
+    .warn:empty { display: none; }
+    .lock.show { position: fixed; top: 40px; left: 50%; transform: translateX(-50%); z-index: 4;
+      width: min(60vw, 420px); margin: 0; box-shadow: 0 4px 18px #0009; background: #2b2417; }
+  }
+  @media (orientation: landscape) and (max-height: 400px) {
+    .layout { row-gap: 4px; }
+    .stickbox { --s: min(30vw, 62vh); }
+    .row2 { display: none; }
+    .stop, .horn { padding: 8px 0; }
+    .btnrow .setupbtn { padding: 5px 2px; font-size: 11px; white-space: nowrap; }
+  }
+</style>
+</head>
+<body>
+<div class="strip"></div>
+<header>
+  <span class="dot" id="dot"></span>
+  <h1>mBot RC</h1>
+  <span class="who"><i class="swatch" id="swatch" hidden></i><span id="who">no robot yet</span></span>
+  <div class="links" title="phone → PC → robot">
+    <span class="bars" id="bars"><i></i><i></i><i></i><i></i></span> <span id="ms">–</span>
+  </div>
+</header>
+
+<div class="layout">
+  <section>
+    <div class="card dash">
+      <div class="meter"><div class="bar"><div class="fill" id="barL"></div></div><span>LEFT</span><em id="valL">0</em></div>
+      <div class="senses">
+        <div>
+          <span class="caps">Distance ahead</span>
+          <div class="dist"><b id="dist">–</b><small id="distUnit"></small><span class="guard" id="guard" hidden>WALL AHEAD</span></div>
+        </div>
+        <div class="near" id="nearBar"><i id="near"></i><span class="mark" id="guardMark"></span></div>
+        <div class="row2">
+          <div><span class="caps">Line follower</span>
+            <div class="eyes"><span class="eye" id="eyeL">L</span><span class="eye" id="eyeR">R</span></div></div>
+          <div><span class="caps">Light</span>
+            <div class="light"><div class="near"><i id="lightBar"></i></div><b id="light">–</b></div></div>
+        </div>
+      </div>
+      <div class="meter"><div class="bar"><div class="fill" id="barR"></div></div><span>RIGHT</span><em id="valR">0</em></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="lock" id="lock"><span>🔒 Another phone is driving this robot. You can drive when it stops.</span>
+      <button id="takeOver">Take control</button></div>
+    <div class="pad" id="pad">
+      <div class="sticks">
+        <div class="stickbox">
+          <div class="stick y" id="stickMove" aria-label="left joystick: forward and back">
+            <svg viewBox="0 0 100 100">
+              <path class="guide" d="M50 17V83"/>
+              <circle class="ring" cx="50" cy="50" r="33"/>
+              <path class="arrow" d="M50 3 55 9H45z"/><path class="arrow" d="M50 97 55 91H45z"/>
+            </svg>
+            <div class="knob" id="knobMove"></div>
+          </div>
+          <span class="caps">Forward · Back</span>
+        </div>
+        <div class="stickbox">
+          <div class="stick x" id="stickTurn" aria-label="right joystick: left and right">
+            <svg viewBox="0 0 100 100">
+              <path class="guide" d="M17 50H83"/>
+              <circle class="ring" cx="50" cy="50" r="33"/>
+              <path class="arrow" d="M3 50 9 45V55z"/><path class="arrow" d="M97 50 91 45V55z"/>
+            </svg>
+            <div class="knob" id="knobTurn"></div>
+          </div>
+          <span class="caps">Left · Right</span>
+        </div>
+      </div>
+      <div class="padrow">
+        <button class="stop" id="stop">STOP</button>
+        <button class="horn" id="horn">BEEP</button>
+      </div>
+    </div>
+    <div class="gears" id="gears"></div>
+    <div class="warn" id="warn"></div>
+    <div class="btnrow">
+      <button class="setupbtn" id="robotsOpen">🤖 Robots</button>
+      <button class="setupbtn" id="setupOpen">⚙ Setup</button>
+    </div>
+  </section>
+</div>
+
+<footer>Left stick: forward / back · right stick: left / right · let go to stop</footer>
+
+<div class="sheet robots" id="robotsSheet">
+  <div class="sheet-head"><h2>Pick your robot</h2><button class="small" id="robotsClose">Done</button></div>
+  <p class="status" id="robotStatus"></p>
+  <section class="card">
+    <span class="caps">mBots near this PC</span>
+    <p class="hint">Switch the robot on. This PC connects to it over Bluetooth, and your phone talks to this PC.
+      Each robot's lights turn its own colour once it's connected, so you can see which one is yours.
+      A robot can only connect to one thing at a time: close the mBlock app first.</p>
+    <button class="setupbtn" id="scanGo">Search again</button>
+    <p class="hint" id="scanMsg"></p>
+    <div class="list" id="robotList"></div>
+  </section>
+</div>
+
+<div class="sheet" id="setupSheet">
+  <div class="sheet-head"><h2>Setup</h2><button class="small" id="setupClose">Done</button></div>
+  <section class="card">
+    <span class="caps">Wheels</span>
+    <p class="hint">Push the left stick forward a little. If a wheel turns backwards, tap its Invert.
+      If the robot turns when you steer the other way, tap Swap sides.</p>
+    <div class="srow">
+      <button class="chip" id="invLeft">Invert left</button>
+      <button class="chip" id="invRight">Invert right</button>
+      <button class="chip" id="swap">⇄ Swap sides</button>
+    </div>
+  </section>
+  <section class="card">
+    <span class="caps">Drift fix</span>
+    <p class="hint">Curves when it should go straight? Slide the other way.</p>
+    <div class="srow"><input type="range" id="trim" step="1"><span class="val" id="trimVal"></span>
+      <button class="small" id="trimReset">0</button></div>
+  </section>
+  <section class="card">
+    <span class="caps">Wall guard</span>
+    <p class="hint" id="guardHint">Stops the robot driving forward into something closer than 12 cm. You can still turn and back up.</p>
+    <div class="srow"><button class="chip" id="guardOn">On</button><button class="chip" id="guardOff">Off</button></div>
+  </section>
+  <section class="card">
+    <span class="caps">Light colour</span>
+    <p class="hint">The colour of this robot's lights, so you can find it among the others.</p>
+    <div class="colours" id="colours"></div>
+  </section>
+</div>
+
+<div class="overlay" id="overlay"><div><h2 id="ovTitle">Connecting…</h2><p id="ovText">Looking for the controller on your PC.</p>
+  <button id="ovRobots" hidden>Pick a robot…</button></div></div>
+
+<script>
+const GEAR_COLORS = { Slow: "#3ddc97", Normal: "#3d9bff", Fast: "#ffb547" };
+const SWATCH = { Red: "#ff4d4d", Green: "#3ddc97", Blue: "#3d9bff", Yellow: "#ffd23d", Purple: "#b06bff",
+                 Cyan: "#33c8e0", Orange: "#ff8a3d", White: "#eef0f4" };
+const $ = id => document.getElementById(id);
+// This page's own id, so the PC can tell phones apart: one phone drives a robot at a time
+const CLIENT = (Math.random().toString(36).slice(2) + Date.now().toString(36)).slice(0, 24);
+const STICK_TRAVEL = 0.33;   // knob centre's reach, as a share of the joystick's width (= full speed)
+const SEND_GAP_MS = 90;      // stick moves go to the PC at most this often
+const NEAR_CM = 100;         // the closeness bar starts filling inside this distance
+const held = new Set();      // arrow keys held (keyboard, e.g. testing in a desktop browser)
+let stick = null;            // [x, y] each -1..1 (right, forward) while a thumb is on either joystick
+let mode = "Normal", built = false, last = {};
+let inFlight = false, lastSent = 0, lastState = 0, phoneMs = null, failures = 0;
+let hardStop = false;        // STOP / focus loss: a late reply is answered with /stop, not a release
+let robotsOpen = false, setupOpen = false, pickedAtStart = false;
+
+function mix(a, b, t) {
+  const p = s => [1, 3, 5].map(i => parseInt(s.slice(i, i + 2), 16));
+  const [x, y] = [p(a), p(b)];
+  return "#" + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, "0")).join("");
+}
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+
+// ---------- gears ----------
+function buildGears(modes) {
+  const box = $("gears"); box.innerHTML = "";
+  modes.forEach((m, i) => {
+    const b = el("button", "gear");
+    b.dataset.mode = m.name;
+    b.append(el("b", "", i + 1), el("span", "", m.name.toUpperCase()), el("small", "", m.pct + "% power"));
+    b.addEventListener("click", () => setMode(m.name));
+    box.append(b);
+  });
+  paintGears();
+}
+function paintGears() {
+  document.querySelectorAll(".gear").forEach(b => {
+    const on = b.dataset.mode === mode, c = GEAR_COLORS[b.dataset.mode];
+    b.style.background = on ? mix(c, "#181b22", .78) : "";
+    b.style.borderColor = on ? c : "transparent";
+    b.querySelector("b").style.color = on ? c : "";
+  });
+  sticks.forEach(s => s.el.style.setProperty("--gear", GEAR_COLORS[mode] || "var(--accent)"));
+}
+function setMode(m) { mode = m; paintGears(); post("/mode", { mode: m }); }
+
+// ---------- input: two joysticks (left: forward/back sets y, right: left/right sets x) ----------
+const sticks = [
+  { el: $("stickMove"), knob: $("knobMove"), axis: "y", pointer: null, value: 0 },
+  { el: $("stickTurn"), knob: $("knobTurn"), axis: "x", pointer: null, value: 0 },
+];
+const [moveStick, turnStick] = sticks;
+function driving() { return !!stick || held.size > 0; }
+function updateStick() { stick = sticks.some(s => s.pointer !== null) ? [turnStick.value, moveStick.value] : null; }
+function moveKnob(s, e) {
+  const r = s.el.getBoundingClientRect(), travel = r.width * STICK_TRAVEL;
+  const d = s.axis === "y" ? e.clientY - (r.top + r.height / 2) : e.clientX - (r.left + r.width / 2);
+  const off = Math.max(-travel, Math.min(travel, d));   // the knob stops at the rim: full speed
+  s.value = +((s.axis === "y" ? -off : off) / travel).toFixed(3);
+  s.knob.style.transform = s.axis === "y" ? `translate(-50%, calc(-50% + ${off}px))` : `translate(calc(-50% + ${off}px), -50%)`;
+  updateStick();
+}
+function releaseKnob(s) {
+  s.pointer = null; s.value = 0;
+  s.el.classList.remove("on");
+  s.knob.style.transform = "";   // springs back to the centre
+  updateStick();
+}
+function releaseStick() { sticks.forEach(releaseKnob); }
+sticks.forEach(s => {
+  s.el.addEventListener("pointerdown", e => {
+    e.preventDefault();
+    if (s.pointer !== null) return;   // a second finger doesn't take over this stick
+    s.pointer = e.pointerId; s.el.setPointerCapture(e.pointerId);
+    s.el.classList.add("on");
+    hardStop = false;
+    moveKnob(s, e); send(true);       // react instantly, don't wait for the tick
+  });
+  s.el.addEventListener("pointermove", e => {
+    if (e.pointerId !== s.pointer) return;
+    moveKnob(s, e);
+    if (performance.now() - lastSent >= SEND_GAP_MS) send(false);
+  });
+  ["pointerup", "pointercancel", "lostpointercapture"].forEach(t => s.el.addEventListener(t, e => {
+    if (e.pointerId !== s.pointer) return;
+    releaseKnob(s); send(true);
+  }));
+});
+function releaseAll(explicit = false) {
+  hardStop = true; releaseStick(); keys.clear(); held.clear(); post("/stop", { explicit });
+}
+$("stop").addEventListener("pointerdown", e => { e.preventDefault(); releaseAll(true); });
+$("takeOver").addEventListener("click", () => post("/takeover", {}));
+$("horn").addEventListener("pointerdown", e => { e.preventDefault(); post("/horn", {}); });
+document.addEventListener("contextmenu", e => e.preventDefault());
+document.addEventListener("visibilitychange", () => { if (document.hidden) releaseAll(); });
+window.addEventListener("blur", () => releaseAll());
+
+// keyboard too (handy when testing in a desktop browser)
+const keys = new Set();
+const KEYMAP = { ArrowUp: "up", w: "up", ArrowDown: "down", s: "down", ArrowLeft: "left", a: "left", ArrowRight: "right", d: "right" };
+function recompute() {
+  const before = [...held].sort().join();
+  held.clear(); keys.forEach(d => held.add(d));
+  if ([...held].sort().join() !== before) send(true);
+}
+addEventListener("keydown", e => {
+  if (robotsOpen || setupOpen) return;
+  if (KEYMAP[e.key]) { e.preventDefault(); hardStop = false; keys.add(KEYMAP[e.key]); recompute(); }
+  else if (e.key === " ") releaseAll(true);
+  else if (e.key === "h" && !e.repeat) post("/horn", {});
+  else if ("123".includes(e.key) && e.key && last.modes) setMode(last.modes[+e.key - 1].name);
+});
+addEventListener("keyup", e => { if (KEYMAP[e.key]) { keys.delete(KEYMAP[e.key]); recompute(); } });
+
+// ---------- talking to the PC ----------
+async function post(path, body) {
+  const t0 = performance.now();
+  try {
+    const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ ...body, client: CLIENT }) });
+    phoneMs = performance.now() - t0; failures = 0;
+    const s = await r.json();
+    show(s);
+    return s;
+  } catch (e) { fail(); }
+}
+function driveBody() { return stick ? { stick, mode } : { held: [...held], mode }; }
+async function send(force) {
+  if (inFlight && !force) return;
+  inFlight = true; lastSent = performance.now();
+  const body = driveBody();
+  await post("/drive", body);
+  inFlight = false;
+  // Let go (or STOP) while that move was on its way: stop again, so the stop lands after the move.
+  if (!driving() && (body.stick || body.held.length)) hardStop ? post("/stop", {}) : send(true);
+}
+async function poll() {
+  const t0 = performance.now();
+  try {
+    const r = await fetch("/state?c=" + CLIENT, { cache: "no-store" });
+    phoneMs = performance.now() - t0; failures = 0;
+    show(await r.json());
+  } catch (e) { fail(); }
+}
+setInterval(() => {
+  if (driving() && performance.now() - lastSent >= SEND_GAP_MS) send(false);   // heartbeat: keeps it moving
+  else if (performance.now() - lastState > 250) { lastState = performance.now(); poll(); }
+}, 100);
+
+function fail() {
+  if (++failures >= 3) {
+    $("overlay").classList.add("show");
+    $("ovTitle").textContent = "Can't reach the PC";
+    $("ovRobots").hidden = true;
+    $("ovText").textContent = "Is mbot_phone.py still running, and is this phone on the same Wi-Fi?";
+    $("dot").style.background = "var(--bad)";
+  }
+}
+
+function show(s) {
+  last = s;
+  if (!built && s.modes) { buildGears(s.modes); buildColours(s.colours); built = true; }
+  if (!pickedAtStart) { pickedAtStart = true; openRobots(); }   // every start: pick the robot
+  if (robotsOpen) paintRobots();
+  if (setupOpen) paintSetup();
+  if (s.mode && s.mode !== mode && !driving()) { mode = s.mode; paintGears(); }
+
+  const r = s.robot, ok = !!(r && r.connected);
+  $("overlay").classList.toggle("show", !ok);
+  $("ovRobots").hidden = false;
+  $("ovTitle").textContent = r ? "Waiting for the robot" : "Pick a robot";
+  $("ovText").textContent = r ? (r.status || "Connecting over Bluetooth…") : "Choose which mBot this phone drives.";
+  $("dot").style.background = ok ? "var(--good)" : "var(--warn)";
+  $("who").textContent = r ? r.name : "no robot yet";
+  $("swatch").hidden = !r;
+  if (r) document.documentElement.style.setProperty("--robot", SWATCH[r.colour] || "var(--accent)");
+
+  const locked = s.control === "other";
+  $("lock").classList.toggle("show", locked);
+  $("pad").classList.toggle("locked", locked);
+
+  const total = (phoneMs || 0) + (r && r.ms || 0);
+  $("ms").textContent = r && r.ms != null ? Math.round(total) + " ms" : "–";
+  const n = !(r && r.ms != null) ? 0 : total < 80 ? 4 : total < 150 ? 3 : total < 300 ? 2 : 1;
+  const bc = n >= 3 ? "var(--good)" : n === 2 ? "var(--warn)" : "var(--bad)";
+  document.querySelectorAll("#bars i").forEach((b, i) => b.style.background = i < n ? bc : "var(--track)");
+
+  paintSenses(s);
+  meter("L", s.left || 0, s.max || 255); meter("R", s.right || 0, s.max || 255);
+  const d = (s.readings || {}).distance;
+  $("warn").textContent = s.guarded ? `Something is ${Math.round(d)} cm ahead. Back up or turn.` : "";
+}
+
+function paintSenses(s) {
+  const rd = s.readings || {}, d = rd.distance, guardCm = s.guard_cm || 12;
+  const valid = d != null && d >= 2 && d < 400;
+  $("dist").textContent = d == null ? "–" : valid ? Math.round(d) : "clear";
+  $("distUnit").textContent = valid ? "cm" : d == null ? "" : "nothing within 4 m";
+  const near = valid ? Math.max(0, Math.min(1, 1 - d / NEAR_CM)) : 0;
+  $("near").style.width = (near * 100) + "%";
+  $("near").style.background = near > 1 - guardCm / NEAR_CM ? "var(--bad)" : near > .5 ? "var(--warn)" : "var(--good)";
+  $("guardMark").style.right = (guardCm / NEAR_CM * 100) + "%";
+  $("guardMark").style.display = s.setup && s.setup.guard ? "" : "none";
+  $("guard").hidden = !s.guarded;
+  // line follower: 0 both on black, 1 left on black, 2 right on black, 3 both on white
+  const line = rd.line;
+  const paint = (id, black) => { $(id).className = "eye" + (line == null ? "" : black ? " black" : " white"); };
+  paint("eyeL", line === 0 || line === 1);
+  paint("eyeR", line === 0 || line === 2);
+  const light = rd.light;
+  $("light").textContent = light == null ? "–" : Math.round(light);
+  $("lightBar").style.width = light == null ? "0" : (Math.min(1, light / 1023) * 100) + "%";
+}
+function meter(side, v, max) {
+  const f = Math.max(-1, Math.min(1, v / max)), e = $("bar" + side);
+  e.style.top = f >= 0 ? (50 - f * 50) + "%" : "50%";
+  e.style.bottom = f >= 0 ? "50%" : (50 + f * 50) + "%";
+  e.style.background = f >= 0 ? "var(--good)" : "var(--warn)";
+  $("val" + side).textContent = v > 0 ? "+" + v : v;
+}
+
+// ---------- Robots: which mBot this phone drives ----------
+function openRobots() {
+  releaseAll();
+  robotsOpen = true;
+  if (!(last.scan && last.scan.running)) post("/scan", {});
+  $("robotsSheet").classList.add("show");
+  $("robotsSheet").scrollTop = 0;
+  paintRobots();
+}
+function closeRobots() { robotsOpen = false; $("robotsSheet").classList.remove("show"); }
+
+function paintRobots() {
+  const r = last.robot, st = $("robotStatus");
+  if (r && r.connected) { st.textContent = `✓ Driving ${r.name} (${r.colour.toLowerCase()} lights). Tap Done to drive, or pick another.`; st.className = "status ok"; }
+  else if (r) { st.textContent = r.status || `Connecting to ${r.name}…`; st.className = "status"; }
+  else { st.textContent = "Tap a robot to drive it."; st.className = "status"; }
+  const scan = last.scan || {};
+  $("scanGo").disabled = !!scan.running;
+  $("scanGo").textContent = scan.running ? "Searching…" : "Search again";
+  const robots = last.robots || [];
+  $("scanMsg").textContent = scan.error || (scan.running ? "Looking for mBots over Bluetooth (about 5 seconds)…" :
+    robots.length ? "" : scan.done ? "No mBots found. Is the robot switched on, with its Bluetooth light blinking?" : "");
+  const list = $("robotList");
+  const key = JSON.stringify(robots.map(x => [x.id, x.connected, x.colour, x.phones, x.yours, x.signal && Math.round(x.signal / 10)]));
+  if (list.dataset.key === key) return;   // rebuild only when something changed
+  list.dataset.key = key; list.innerHTML = "";
+  for (const x of robots) {
+    const b = el("button"), sw = el("i", "swatch" + (x.hex ? "" : " none")), name = el("b", "", x.name), info = el("small");
+    if (x.hex) sw.style.background = SWATCH[x.colour] || x.hex;
+    if (x.yours) { b.className = "yours"; name.append(el("br"), el("span", "tag", "Yours")); }
+    if (x.connected || x.colour) {
+      info.textContent = (x.connected ? `Connected · ${x.colour.toLowerCase()}` : "Connecting…") +
+        (x.phones && !x.yours ? ` · ${x.phones} phone${x.phones > 1 ? "s" : ""}` : "");
+    } else if (x.signal != null) {
+      const bars = x.signal > -60 ? 3 : x.signal > -75 ? 2 : 1, sig = el("span", "signal");
+      for (let i = 0; i < 3; i++) sig.append(el("i", i < bars ? "lit" : ""));
+      info.append(sig);
+    }
+    b.append(sw, name, info);
+    b.addEventListener("click", () => pick(x.id));
+    list.append(b);
+  }
+}
+async function pick(id) {
+  const s = await post("/select", { robot: id });
+  if (s && s.error) { $("robotStatus").textContent = s.error; $("robotStatus").className = "status bad"; }
+}
+$("robotsOpen").addEventListener("click", openRobots);
+$("ovRobots").addEventListener("click", openRobots);
+$("robotsClose").addEventListener("click", closeRobots);
+$("scanGo").addEventListener("click", () => post("/scan", {}));
+
+// ---------- Setup ----------
+function openSetup() {
+  if (!last.setup) { openRobots(); return; }
+  releaseAll();
+  setupOpen = true;
+  const t = $("trim"); t.min = -last.trim_range; t.max = last.trim_range;
+  $("guardHint").textContent = `Stops the robot driving forward into something closer than ${last.guard_cm} cm. You can still turn and back up.`;
+  paintSetup();
+  $("setupSheet").classList.add("show");
+  $("setupSheet").scrollTop = 0;
+}
+function closeSetup() { setupOpen = false; $("setupSheet").classList.remove("show"); }
+function setup(changes) { post("/setup", changes); }
+function buildColours(names) {
+  const box = $("colours"); box.innerHTML = "";
+  for (const n of names || []) {
+    const b = el("button"), i = el("i");
+    i.style.background = SWATCH[n]; b.dataset.colour = n;
+    b.append(i, n);
+    b.addEventListener("click", () => post("/colour", { colour: n }));
+    box.append(b);
+  }
+}
+function paintSetup() {
+  const su = last.setup; if (!su) return;
+  $("invLeft").classList.toggle("on", su.invert_left);
+  $("invRight").classList.toggle("on", su.invert_right);
+  $("swap").classList.toggle("on", su.swap);
+  $("guardOn").classList.toggle("on", su.guard);
+  $("guardOff").classList.toggle("on", !su.guard);
+  if (document.activeElement !== $("trim")) $("trim").value = su.trim;
+  paintTrim(+$("trim").value);
+  const colour = last.robot && last.robot.colour;
+  document.querySelectorAll("#colours button").forEach(b => b.classList.toggle("on", b.dataset.colour === colour));
+}
+function paintTrim(t) { $("trimVal").textContent = t === 0 ? "0 · straight" : t > 0 ? `left wheel +${t}%` : `right wheel +${-t}%`; }
+$("setupOpen").addEventListener("click", openSetup);
+$("setupClose").addEventListener("click", closeSetup);
+$("invLeft").addEventListener("click", () => setup({ invert_left: !last.setup.invert_left }));
+$("invRight").addEventListener("click", () => setup({ invert_right: !last.setup.invert_right }));
+$("swap").addEventListener("click", () => setup({ swap: !last.setup.swap }));
+$("guardOn").addEventListener("click", () => setup({ guard: true }));
+$("guardOff").addEventListener("click", () => setup({ guard: false }));
+$("trim").addEventListener("input", e => paintTrim(+e.target.value));
+$("trim").addEventListener("change", e => setup({ trim: +e.target.value }));
+$("trimReset").addEventListener("click", () => { $("trim").value = 0; paintTrim(0); setup({ trim: 0 }); });
+
+poll();
+</script>
+</body>
+</html>

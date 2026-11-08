@@ -1,0 +1,544 @@
+<title>How the mBot Works</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one reading column on a cool aluminium ground; diagrams and widgets break out slightly wider. Teal = senses, orange = actions, blue = the brain. */
+:root {
+  --bg: #f2f5f9;
+  --surface: #ffffff;
+  --ink: #142030;
+  --muted: #55657a;
+  --line: #d3dce7;
+  --brain: #1d6fd6;
+  --sense: #0b8578;
+  --act: #c95a17;
+  --tape: #1b1f24;
+  --paper: #fbfbf8;
+  --brain-soft: #e3eefc;
+  --sense-soft: #dff2ef;
+  --act-soft: #fbeadf;
+  --f-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d141e; --surface: #152030; --ink: #e5ecf4; --muted: #98a7b9; --line: #283a50;
+    --brain: #5ea5ff; --sense: #3cc4b3; --act: #f08c4c; --tape: #05070a; --paper: #d9dde2;
+    --brain-soft: #16294a; --sense-soft: #0f2f2c; --act-soft: #3a2314;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d141e; --surface: #152030; --ink: #e5ecf4; --muted: #98a7b9; --line: #283a50;
+  --brain: #5ea5ff; --sense: #3cc4b3; --act: #f08c4c; --tape: #05070a; --paper: #d9dde2;
+  --brain-soft: #16294a; --sense-soft: #0f2f2c; --act-soft: #3a2314;
+  color-scheme: dark;
+}
+
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 17px; line-height: 1.6; }
+.wrap { max-width: 860px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 48px 72px; display: grid; gap: 64px; }
+.prose { max-width: 66ch; }
+h1, h2, h3 { font-family: var(--f-display); line-height: 1.1; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(2.6rem, 7vw, 4.2rem); font-weight: 800; letter-spacing: -0.02em; }
+h2 { font-size: clamp(1.6rem, 4vw, 2.1rem); font-weight: 700; letter-spacing: -0.01em; }
+h3 { font-size: 1.2rem; font-weight: 700; }
+p { margin: 0; }
+section { display: grid; gap: 20px; }
+.eyebrow { font-family: var(--f-mono); font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.lede { font-size: 1.2rem; color: var(--muted); max-width: 58ch; }
+code, .mono { font-family: var(--f-mono); font-size: 0.88em; }
+a { color: var(--brain); }
+a:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid var(--brain); outline-offset: 2px; }
+.sense { color: var(--sense); } .act { color: var(--act); } .brain { color: var(--brain); }
+
+/* hero */
+header { display: grid; gap: 18px; }
+.readout { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-top: 8px; }
+.readout > div { background: var(--surface); padding: 14px 16px; display: grid; gap: 2px; }
+.readout .k { font-size: 0.85rem; color: var(--muted); }
+.readout .v { font-family: var(--f-mono); font-size: 1.6rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.readout .v small { font-size: 0.9rem; font-weight: 400; color: var(--muted); }
+.readout .n { font-size: 0.85rem; color: var(--muted); }
+.readout-cap { font-size: 0.85rem; color: var(--muted); }
+
+/* diagram */
+.figure { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.figure svg { display: block; width: 100%; min-width: 640px; height: auto; }
+.figure svg text { font-family: var(--f-body); }
+.legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 0.9rem; color: var(--muted); }
+.legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; background: currentColor; vertical-align: 0; }
+
+/* parts list */
+.parts { display: grid; gap: 28px; }
+.part { display: grid; grid-template-columns: 150px 1fr; gap: 6px 24px; padding-top: 20px; border-top: 1px solid var(--line); }
+.part > * { min-width: 0; }
+.part .tag { font-family: var(--f-mono); font-size: 0.8rem; color: var(--muted); padding-top: 4px; }
+.part .body { display: grid; gap: 10px; }
+@media (max-width: 620px) { .part { grid-template-columns: 1fr; } }
+.formula { font-family: var(--f-mono); font-size: 0.95rem; background: var(--sense-soft); padding: 10px 14px; border-radius: 8px; overflow-x: auto; }
+
+/* widgets */
+.widget { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px; display: grid; gap: 16px; }
+.widget h3 { font-size: 1.05rem; }
+.widget .hint { font-size: 0.92rem; color: var(--muted); }
+.lf { display: grid; grid-template-columns: auto 1fr; gap: 20px; align-items: center; }
+@media (max-width: 560px) { .lf { grid-template-columns: 1fr; } }
+.eyes { display: flex; gap: 10px; }
+.eye { width: 92px; height: 92px; border-radius: 10px; border: 2px solid var(--line); cursor: pointer; font: 600 0.85rem var(--f-body); display: grid; place-items: center; text-align: center; line-height: 1.3; padding: 6px; }
+.eye[aria-pressed="true"] { background: var(--tape); color: #f4f4f4; border-color: var(--tape); }
+.eye[aria-pressed="false"] { background: var(--paper); color: #1b1f24; }
+.lf-out { display: grid; gap: 4px; }
+.lf-out .val { font-family: var(--f-mono); font-size: 2rem; font-weight: 600; color: var(--sense); }
+.lf-out .what { font-weight: 700; }
+
+.drive { display: grid; grid-template-columns: minmax(0, 1fr) 230px; gap: 20px; align-items: start; }
+@media (max-width: 680px) { .drive { grid-template-columns: 1fr; } }
+.drive canvas { width: 100%; height: auto; aspect-ratio: 3 / 2; max-width: 100%; background: var(--bg); border-radius: 8px; display: block; }
+.ctl { display: grid; gap: 14px; }
+.ctl label { display: grid; gap: 4px; font-size: 0.9rem; }
+.ctl label span { display: flex; justify-content: space-between; }
+.ctl output { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.ctl input[type=range] { width: 100%; accent-color: var(--act); }
+.presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.presets button { font: 0.85rem var(--f-body); padding: 6px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; }
+.presets button:hover { border-color: var(--act); }
+.drive-says { font-weight: 700; min-height: 1.6em; }
+
+/* modes */
+.modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+.mode { display: grid; gap: 6px; align-content: start; }
+.mode .letter { font-family: var(--f-display); font-size: 2.6rem; font-weight: 800; line-height: 1; color: var(--brain); }
+
+/* bytes */
+.bytes { overflow-x: auto; }
+.bytes table { border-collapse: collapse; font-family: var(--f-mono); font-size: 0.9rem; min-width: 560px; }
+.bytes th, .bytes td { padding: 8px 10px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+.bytes th { font-family: var(--f-body); font-size: 0.8rem; color: var(--muted); font-weight: 700; }
+.bytes td.b { font-weight: 600; white-space: nowrap; }
+.bytes td.m { font-family: var(--f-body); }
+.bytes tr.dir td { background: var(--brain-soft); font-family: var(--f-body); font-weight: 700; }
+
+.cols2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px; }
+.cols2 > div { display: grid; gap: 8px; align-content: start; }
+
+/* specs */
+dl.spec { display: grid; grid-template-columns: 200px 1fr; margin: 0; border-top: 1px solid var(--line); }
+dl.spec dt, dl.spec dd { margin: 0; padding: 10px 0; border-bottom: 1px solid var(--line); }
+dl.spec dt { color: var(--muted); font-size: 0.92rem; }
+@media (max-width: 520px) { dl.spec { grid-template-columns: 1fr; } dl.spec dt { border-bottom: 0; padding-bottom: 0; } }
+
+.fixes { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; }
+.fixes li { display: grid; gap: 2px; }
+.fixes b { font-weight: 700; }
+footer { font-size: 0.85rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 18px; }
+</style>
+
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">Makeblock mBot · Bluetooth version</div>
+  <h1>How the mBot works</h1>
+  <p class="lede">The mBot is a small two-wheeled robot with one circuit board for a brain. This page explains what each part does, how the robot decides what to do, and how your computer talks to it.</p>
+  <div class="readout" role="group" aria-label="Readings from a real mBot">
+    <div><span class="k">Distance sensor</span><span class="v">400 <small>cm</small></span><span class="n">Nothing in range (400 is its limit)</span></div>
+    <div><span class="k">Light sensor</span><span class="v">402 <small>/ 1023</small></span><span class="n">Ordinary indoor light</span></div>
+    <div><span class="k">Line follower</span><span class="v">0 <small>of 0–3</small></span><span class="n">Both eyes see “black” (nothing below)</span></div>
+    <div><span class="k">Firmware</span><span class="v" style="font-size:1.25rem">06.01.009</span><span class="n">Makeblock’s factory program</span></div>
+  </div>
+  <p class="readout-cap">Read from an mBot plugged into this computer by USB (COM3) on 8 November 2026.</p>
+</header>
+
+<section>
+  <h2>Sense, think, act</h2>
+  <p class="prose">Every robot, from a vacuum cleaner to a Mars rover, repeats the same loop. It <b class="sense">senses</b> the world, <b class="brain">thinks</b> about what it found, then <b class="act">acts</b>. The mBot runs this loop hundreds of times a second. If the distance sensor reports a wall 8 cm ahead, the program decides to turn, and the motors carry that out before the next reading arrives.</p>
+  <div class="figure">
+    <svg viewBox="0 0 760 420" role="img" aria-labelledby="dgT">
+      <title id="dgT">The mCore board in the middle, sensors feeding in on the left, motors, lights and buzzer on the right, power and wireless below.</title>
+      <defs>
+        <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker>
+      </defs>
+      <!-- senses -->
+      <g font-size="14">
+        <text x="20" y="28" fill="var(--sense)" font-weight="700" font-size="13" letter-spacing="1">SENSES</text>
+        <g>
+          <rect x="20" y="42" width="190" height="50" rx="8" fill="var(--sense-soft)" stroke="var(--sense)"/>
+          <text x="34" y="64" fill="var(--ink)" font-weight="700">Ultrasonic sensor</text>
+          <text x="34" y="82" fill="var(--muted)" font-size="12">the “eyes” · port 3</text>
+        </g>
+        <g>
+          <rect x="20" y="102" width="190" height="50" rx="8" fill="var(--sense-soft)" stroke="var(--sense)"/>
+          <text x="34" y="124" fill="var(--ink)" font-weight="700">Line follower</text>
+          <text x="34" y="142" fill="var(--muted)" font-size="12">underneath · port 2</text>
+        </g>
+        <g>
+          <rect x="20" y="162" width="190" height="50" rx="8" fill="var(--sense-soft)" stroke="var(--sense)"/>
+          <text x="34" y="184" fill="var(--ink)" font-weight="700">Light sensor</text>
+          <text x="34" y="202" fill="var(--muted)" font-size="12">on the board</text>
+        </g>
+        <g>
+          <rect x="20" y="222" width="190" height="50" rx="8" fill="var(--sense-soft)" stroke="var(--sense)"/>
+          <text x="34" y="244" fill="var(--ink)" font-weight="700">Button</text>
+          <text x="34" y="262" fill="var(--muted)" font-size="12">on the board</text>
+        </g>
+        <g>
+          <rect x="20" y="282" width="190" height="50" rx="8" fill="var(--sense-soft)" stroke="var(--sense)"/>
+          <text x="34" y="304" fill="var(--ink)" font-weight="700">IR receiver</text>
+          <text x="34" y="322" fill="var(--muted)" font-size="12">hears the remote</text>
+        </g>
+      </g>
+      <!-- brain -->
+      <g>
+        <rect x="270" y="112" width="220" height="150" rx="12" fill="var(--brain-soft)" stroke="var(--brain)" stroke-width="2"/>
+        <text x="380" y="146" text-anchor="middle" fill="var(--brain)" font-weight="700" font-size="13" letter-spacing="1">BRAIN</text>
+        <text x="380" y="174" text-anchor="middle" fill="var(--ink)" font-weight="700" font-size="18">mCore board</text>
+        <text x="380" y="198" text-anchor="middle" fill="var(--muted)" font-size="13">ATmega328 chip, 16 MHz</text>
+        <text x="380" y="218" text-anchor="middle" fill="var(--muted)" font-size="13">32 KB for the program</text>
+        <text x="380" y="242" text-anchor="middle" fill="var(--muted)" font-size="13">runs one program in a loop</text>
+      </g>
+      <!-- actions -->
+      <g font-size="14">
+        <text x="550" y="28" fill="var(--act)" font-weight="700" font-size="13" letter-spacing="1">ACTIONS</text>
+        <g>
+          <rect x="550" y="42" width="190" height="50" rx="8" fill="var(--act-soft)" stroke="var(--act)"/>
+          <text x="564" y="64" fill="var(--ink)" font-weight="700">Left motor</text>
+          <text x="564" y="82" fill="var(--muted)" font-size="12">port M1</text>
+        </g>
+        <g>
+          <rect x="550" y="102" width="190" height="50" rx="8" fill="var(--act-soft)" stroke="var(--act)"/>
+          <text x="564" y="124" fill="var(--ink)" font-weight="700">Right motor</text>
+          <text x="564" y="142" fill="var(--muted)" font-size="12">port M2</text>
+        </g>
+        <g>
+          <rect x="550" y="162" width="190" height="50" rx="8" fill="var(--act-soft)" stroke="var(--act)"/>
+          <text x="564" y="184" fill="var(--ink)" font-weight="700">2 colour LEDs</text>
+          <text x="564" y="202" fill="var(--muted)" font-size="12">any colour, on the board</text>
+        </g>
+        <g>
+          <rect x="550" y="222" width="190" height="50" rx="8" fill="var(--act-soft)" stroke="var(--act)"/>
+          <text x="564" y="244" fill="var(--ink)" font-weight="700">Buzzer</text>
+          <text x="564" y="262" fill="var(--muted)" font-size="12">beeps and tunes</text>
+        </g>
+        <g>
+          <rect x="550" y="282" width="190" height="50" rx="8" fill="var(--act-soft)" stroke="var(--act)"/>
+          <text x="564" y="304" fill="var(--ink)" font-weight="700">IR transmitter</text>
+          <text x="564" y="322" fill="var(--muted)" font-size="12">signals other mBots</text>
+        </g>
+      </g>
+      <!-- arrows in -->
+      <g stroke="var(--muted)" stroke-width="1.5" fill="none" marker-end="url(#ah)">
+        <path d="M210,67 C240,67 240,150 268,160"/>
+        <path d="M210,127 C240,127 245,170 268,175"/>
+        <path d="M210,187 L268,187"/>
+        <path d="M210,247 C240,247 245,205 268,200"/>
+        <path d="M210,307 C240,307 240,225 268,215"/>
+      </g>
+      <!-- arrows out -->
+      <g stroke="var(--muted)" stroke-width="1.5" fill="none" marker-end="url(#ah)">
+        <path d="M492,160 C520,150 520,67 548,67"/>
+        <path d="M492,175 C515,170 520,127 548,127"/>
+        <path d="M492,187 L548,187"/>
+        <path d="M492,200 C515,205 520,247 548,247"/>
+        <path d="M492,215 C520,225 520,307 548,307"/>
+      </g>
+      <!-- power & wireless -->
+      <g font-size="14">
+        <line x1="380" y1="264" x2="380" y2="356" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="4 4"/>
+        <rect x="200" y="356" width="170" height="50" rx="8" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/>
+        <text x="214" y="378" fill="var(--ink)" font-weight="700">Power</text>
+        <text x="214" y="396" fill="var(--muted)" font-size="12">3.7 V lithium or 4 × AA</text>
+        <rect x="390" y="356" width="170" height="50" rx="8" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/>
+        <text x="404" y="378" fill="var(--ink)" font-weight="700">USB / Bluetooth</text>
+        <text x="404" y="396" fill="var(--muted)" font-size="12">talks to your computer</text>
+      </g>
+    </svg>
+  </div>
+  <div class="legend"><span class="sense">Senses (inputs)</span><span class="brain">Brain</span><span class="act">Actions (outputs)</span></div>
+</section>
+
+<section>
+  <h2>The senses</h2>
+  <div class="parts">
+
+    <div class="part">
+      <div class="tag">ULTRASONIC<br>port 3</div>
+      <div class="body">
+        <h3>Distance sensor: the two “eyes”</h3>
+        <p>The two round cylinders on the front look like eyes, but they work like a bat’s ears. One sends out a click of sound too high for people to hear. The other listens for the echo. The longer the echo takes, the farther away the object is.</p>
+        <p>Sound travels about 343 metres per second, so it covers 1 cm in about 29 microseconds. The sound has to go out and come back, so the board divides by two:</p>
+        <div class="formula">distance (cm) = echo time (µs) ÷ 58</div>
+        <p>A wall 10 cm away sends the echo back in about 580 microseconds. The sensor works from about 3 cm to 400 cm, and reports 400 when nothing is in range. Soft or slanted things like curtains and chair legs can absorb or deflect the sound, so it can miss them.</p>
+      </div>
+    </div>
+
+    <div class="part">
+      <div class="tag">LINE FOLLOWER<br>port 2</div>
+      <div class="body">
+        <h3>Line follower: two eyes looking down</h3>
+        <p>Under the front of the robot are two small infrared lights, each paired with a light detector. White paper bounces infrared light back. Black tape soaks it up. Each eye only answers one question: “do I see black?” The board combines the two answers into a single number from 0 to 3.</p>
+        <p>If you lift the robot off the table, both eyes see nothing reflected, so they report black. That’s why our robot read 0.</p>
+        <div class="widget" id="lfw">
+          <h3>Try it: put each eye over the line</h3>
+          <div class="lf">
+            <div class="eyes">
+              <button class="eye" id="eyeL" aria-pressed="true">Left eye<br>on black</button>
+              <button class="eye" id="eyeR" aria-pressed="true">Right eye<br>on black</button>
+            </div>
+            <div class="lf-out" aria-live="polite">
+              <span class="hint">The sensor reports</span>
+              <span class="val" id="lfVal">0</span>
+              <span class="what" id="lfWhat">Both on the line: drive straight</span>
+              <span class="hint" id="lfWhy">This is what the factory line-following program does with each value.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="part">
+      <div class="tag">LIGHT<br>on board</div>
+      <div class="body">
+        <h3>Light sensor</h3>
+        <p>A small light-sensitive part on the top of the board turns brightness into a number from 0 (dark) to 1023 (very bright). You can use it to make the mBot wake up when the lights come on, or hide under a table.</p>
+      </div>
+    </div>
+
+    <div class="part">
+      <div class="tag">BUTTON · IR<br>on board</div>
+      <div class="body">
+        <h3>Button and remote receiver</h3>
+        <p>The button on the board is a simple on/off input. The factory program uses it to switch modes. The IR receiver picks up invisible infrared flashes from the remote control, the same way a TV does. Each remote key sends a different pattern of flashes.</p>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<section>
+  <h2>Moving and steering</h2>
+  <p class="prose">The mBot has no steering wheel. It steers the way a tank or a wheelchair does, by spinning its two wheels at different speeds. This is called <b>differential drive</b>. The small ball or skid at the front just slides along for balance.</p>
+  <p class="prose">The two motors are mounted facing opposite directions, so to drive forward the program actually spins one of them “backwards”. Speeds go from −255 (full reverse) to 255 (full forward).</p>
+  <div class="widget">
+    <h3>Try it: set each wheel’s speed</h3>
+    <div class="drive">
+      <canvas id="track" width="600" height="400" aria-label="Path the robot would drive in three seconds"></canvas>
+      <div class="ctl">
+        <label for="spL"><span>Left wheel <output id="oL" for="spL">200</output></span>
+          <input type="range" id="spL" min="-255" max="255" step="5" value="200"></label>
+        <label for="spR"><span>Right wheel <output id="oR" for="spR">120</output></span>
+          <input type="range" id="spR" min="-255" max="255" step="5" value="120"></label>
+        <div class="presets">
+          <button data-l="200" data-r="200">Straight</button>
+          <button data-l="200" data-r="120">Gentle right</button>
+          <button data-l="-150" data-r="150">Spin left</button>
+          <button data-l="0" data-r="200">Pivot left</button>
+          <button data-l="-180" data-r="-180">Reverse</button>
+        </div>
+        <p class="drive-says" id="driveSays" aria-live="polite"></p>
+        <p class="hint">The line shows where the robot would go in three seconds, starting in the middle and facing up.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Lights and sound</h2>
+  <div class="cols2">
+    <div>
+      <h3 class="act">Two colour LEDs</h3>
+      <p>Each LED holds a tiny red, green and blue light. Mixing them at different brightnesses (0 to 255 each) makes any colour. Red and green together make yellow. All three at full make white.</p>
+    </div>
+    <div>
+      <h3 class="act">Buzzer</h3>
+      <p>The buzzer is a tiny speaker that clicks back and forth very quickly. The number of clicks per second sets the note: 262 per second is middle C and 440 is the A above it. Programs can play beeps or whole tunes.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Out of the box: three modes</h2>
+  <p class="prose">A new mBot already has a program inside it. Turn it on, then press the button on the board (or A, B or C on the remote) to switch modes. The LEDs change colour and the buzzer beeps so you know which mode you’re in.</p>
+  <div class="modes">
+    <div class="mode"><span class="letter">A</span><h3>Remote control</h3><p>Drive with the arrow keys on the IR remote. The number keys set the speed.</p></div>
+    <div class="mode"><span class="letter">B</span><h3>Avoid obstacles</h3><p>The robot drives on its own and turns away when the distance sensor sees something close.</p></div>
+    <div class="mode"><span class="letter">C</span><h3>Follow a line</h3><p>Put it on the black track map from the box. It uses the line follower to stay on the line.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>How your computer talks to it</h2>
+  <div class="cols2">
+    <div>
+      <h3>By USB cable</h3>
+      <p>A chip on the board (a CH340) turns USB into a simple serial connection. On Windows it shows up as a COM port. Ours is COM3. If no COM port appears, install the CH340 driver.</p>
+    </div>
+    <div>
+      <h3>By Bluetooth</h3>
+      <p>The Bluetooth module plugs into the board and carries the same messages without a cable. Pair it with a tablet or phone using the mBlock app, or with a computer using the Makeblock Bluetooth dongle. Keep the robot close to the dongle the first time they pair.</p>
+    </div>
+  </div>
+
+  <h3>Two ways to run your program</h3>
+  <div class="cols2">
+    <div>
+      <p><b class="brain">Live mode.</b> Your program runs on the computer, and the computer sends the robot short orders like “read the distance sensor” or “left motor to 150”. Changes take effect straight away, but the robot stops when the connection drops. This needs the factory firmware, which our robot has.</p>
+    </div>
+    <div>
+      <p><b class="brain">Upload mode.</b> mBlock turns your blocks into Arduino code and copies it onto the chip. The robot then runs it on its own, with no cable. Uploading replaces the factory program. To get modes A, B and C back, use mBlock’s “Update firmware” or “Reset default program” option.</p>
+    </div>
+  </div>
+
+  <h3>What a message looks like</h3>
+  <p class="prose">In live mode, every order is a handful of numbers called bytes, written here in hexadecimal. This is the real conversation from the readings at the top of the page: the computer asked for the distance, and the robot answered.</p>
+  <div class="bytes">
+    <table>
+      <thead><tr><th>Bytes</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr class="dir"><td colspan="2">Computer → mBot: “What does the distance sensor on port 3 say?”</td></tr>
+        <tr><td class="b">FF 55</td><td class="m">Start of a message</td></tr>
+        <tr><td class="b">04</td><td class="m">4 more bytes follow</td></tr>
+        <tr><td class="b">01</td><td class="m">Message number 1, so the answer can be matched up</td></tr>
+        <tr><td class="b">01</td><td class="m">“Read” (02 would be “write”, such as setting a motor)</td></tr>
+        <tr><td class="b">01</td><td class="m">Which device: 01 is the ultrasonic sensor</td></tr>
+        <tr><td class="b">03</td><td class="m">Port 3</td></tr>
+        <tr class="dir"><td colspan="2">mBot → computer: “400.0”</td></tr>
+        <tr><td class="b">FF 55</td><td class="m">Start of the reply</td></tr>
+        <tr><td class="b">01</td><td class="m">This answers message number 1</td></tr>
+        <tr><td class="b">02</td><td class="m">A decimal number follows</td></tr>
+        <tr><td class="b">00 00 C8 43</td><td class="m">400.0, stored as a 4-byte decimal number</td></tr>
+        <tr><td class="b">0D 0A</td><td class="m">End of the reply</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2>Power</h2>
+  <p class="prose">The mBot runs on either the 3.7 V rechargeable lithium battery or 4 AA batteries in the battery box. The power switch is on the board. With the lithium battery fitted, plugging in the USB cable also charges it. The motors use the most power, so a weak battery shows up first as slow, wobbly driving.</p>
+</section>
+
+<section>
+  <h2>Spec sheet</h2>
+  <dl class="spec">
+    <dt>Brain</dt><dd>mCore board with an ATmega328 chip (Arduino Uno compatible)</dd>
+    <dt>Sensors</dt><dd>Ultrasonic distance, line follower, light sensor, button, IR receiver</dd>
+    <dt>Outputs</dt><dd>2 DC motors, 2 colour LEDs, buzzer, IR transmitter</dd>
+    <dt>Connection</dt><dd>USB cable, Bluetooth</dd>
+    <dt>Power</dt><dd>3.7 V lithium battery or 4 × AA batteries</dd>
+    <dt>Size</dt><dd>17 × 13 × 9 cm</dd>
+    <dt>Weight</dt><dd>About 500 g</dd>
+    <dt>Programming</dt><dd>mBlock (drag-and-drop blocks or Python), or Arduino C++</dd>
+  </dl>
+</section>
+
+<section>
+  <h2>When something seems wrong</h2>
+  <ul class="fixes">
+    <li><b>The distance sensor always says 400.</b> Nothing is within 4 metres, or the sensor cable isn’t clicked into port 3.</li>
+    <li><b>The line follower always says 0.</b> The robot is lifted up, the cable isn’t in port 2, or the surface is too dark.</li>
+    <li><b>No COM port appears.</b> Install the CH340 driver, then try a different USB cable. Some cables only carry power.</li>
+    <li><b>Live mode can’t connect after an upload.</b> The uploaded program replaced the factory firmware. Use “Update firmware” in mBlock.</li>
+    <li><b>It drives in curves when it should go straight.</b> Cheap motors never match exactly. Give the slower wheel a slightly higher speed.</li>
+  </ul>
+</section>
+
+<footer>Specs are from the mBot box. Readings and firmware version are from the robot on COM3.</footer>
+
+</div>
+
+<script>
+(function () {
+  // Line follower: values and actions match Makeblock's factory line-following program
+  var L = document.getElementById('eyeL'), R = document.getElementById('eyeR');
+  var outs = {
+    0: ['Both on the line: drive straight', 'The line is right under the robot.'],
+    1: ['Left eye on the line: turn left', 'The line is drifting to the left, so the robot follows it.'],
+    2: ['Right eye on the line: turn right', 'The line is drifting to the right, so the robot follows it.'],
+    3: ['Lost the line: back up', 'Neither eye sees black, so the robot reverses to find the line again.']
+  };
+  function lf() {
+    var l = L.getAttribute('aria-pressed') === 'true', r = R.getAttribute('aria-pressed') === 'true';
+    L.innerHTML = 'Left eye<br>on ' + (l ? 'black' : 'white');
+    R.innerHTML = 'Right eye<br>on ' + (r ? 'black' : 'white');
+    var v = (l ? 0 : 2) + (r ? 0 : 1);
+    document.getElementById('lfVal').textContent = v;
+    document.getElementById('lfWhat').textContent = outs[v][0];
+    document.getElementById('lfWhy').textContent = outs[v][1];
+  }
+  [L, R].forEach(function (b) {
+    b.addEventListener('click', function () { b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') === 'true' ? 'false' : 'true'); lf(); });
+  });
+  lf();
+
+  // Differential drive sketch
+  var cv = document.getElementById('track'), ctx = cv.getContext('2d');
+  var sL = document.getElementById('spL'), sR = document.getElementById('spR');
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+  var anim = 0, t0 = 0;
+  function tok(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+  function path(l, r) {
+    // speed units -> px/s; wheelbase ~ 11.5 cm scaled
+    var k = 0.45, base = 46, pts = [], x = 300, y = 200, th = -Math.PI / 2, dt = 0.02;
+    for (var t = 0; t <= 3.0001; t += dt) {
+      pts.push([x, y, th]);
+      var vl = l * k, vr = r * k, v = (vl + vr) / 2, w = (vl - vr) / base;
+      x += v * Math.cos(th) * dt; y += v * Math.sin(th) * dt; th += w * dt;
+    }
+    return pts;
+  }
+  function describe(l, r) {
+    if (l === 0 && r === 0) return 'Stopped.';
+    if (l === r) return l > 0 ? 'Drives straight ahead.' : 'Backs up in a straight line.';
+    if (l === -r) return l > 0 ? 'Spins on the spot to the right.' : 'Spins on the spot to the left.';
+    if (l === 0 || r === 0) return 'Pivots around the stopped wheel.';
+    var fwd = l + r > 0;
+    if (fwd) return l > r ? 'Curves to the right.' : 'Curves to the left.';
+    return 'Reverses while curving.';
+  }
+  function robot(p, col) {
+    ctx.save(); ctx.translate(p[0], p[1]); ctx.rotate(p[2] + Math.PI / 2);
+    ctx.fillStyle = tok('--brain'); ctx.strokeStyle = tok('--ink'); ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(-16, -20, 32, 40, 6) : ctx.rect(-16, -20, 32, 40); ctx.fill();
+    ctx.fillStyle = tok('--ink'); ctx.fillRect(-21, -2, 6, 16); ctx.fillRect(15, -2, 6, 16);
+    ctx.fillStyle = tok('--surface'); ctx.beginPath(); ctx.arc(-6, -14, 3.5, 0, 7); ctx.arc(6, -14, 3.5, 0, 7); ctx.fill();
+    ctx.restore();
+  }
+  function draw(frac) {
+    var l = +sL.value, r = +sR.value, pts = path(l, r);
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.strokeStyle = tok('--line'); ctx.lineWidth = 1;
+    for (var gx = 0; gx <= 600; gx += 50) { ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, 400); ctx.stroke(); }
+    for (var gy = 0; gy <= 400; gy += 50) { ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(600, gy); ctx.stroke(); }
+    var n = Math.max(1, Math.round((pts.length - 1) * frac));
+    ctx.strokeStyle = tok('--act'); ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+    for (var i = 1; i <= n; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.stroke();
+    robot(pts[n]);
+  }
+  function update() {
+    document.getElementById('oL').textContent = sL.value;
+    document.getElementById('oR').textContent = sR.value;
+    document.getElementById('driveSays').textContent = describe(+sL.value, +sR.value);
+    cancelAnimationFrame(anim);
+    if (reduce.matches) { draw(1); return; }
+    t0 = 0;
+    anim = requestAnimationFrame(function step(ts) {
+      if (!t0) t0 = ts;
+      var f = Math.min(1, (ts - t0) / 1500);
+      draw(f);
+      if (f < 1) anim = requestAnimationFrame(step);
+    });
+  }
+  sL.addEventListener('input', update); sR.addEventListener('input', update);
+  document.querySelectorAll('.presets button').forEach(function (b) {
+    b.addEventListener('click', function () { sL.value = b.dataset.l; sR.value = b.dataset.r; update(); });
+  });
+  draw(1); update();
+  var mq = window.matchMedia('(prefers-color-scheme: dark)');
+  if (mq.addEventListener) mq.addEventListener('change', function () { draw(1); });
+  new MutationObserver(function () { draw(1); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+})();
+</script>
